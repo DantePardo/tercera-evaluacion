@@ -1,5 +1,4 @@
 import requests
-
 # URL base de la API
 BASE_URL = "https://mindicador.cl/api"
 

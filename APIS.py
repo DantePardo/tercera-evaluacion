@@ -1,41 +1,35 @@
-import requests
-# URL base de la API
-BASE_URL = "https://mindicador.cl/api"
+import os
+from Autenticador.main import Finance
 
-def obtener_indicador(indicador):
-    """Consulta un indicador específico desde la API."""
-    try:
-        response = requests.get(f"{BASE_URL}/{indicador}")
-        data = response.json()
-        return data["serie"][0]["valor"]
-    except Exception as e:
-        print(f"Error obteniendo {indicador}: {e}")
-        return None
 
 def main():
-    print("=== Valores Económicos desde mindicador.cl ===\n")
+    print("=== Valores Económicos (fuentes alternas) ===\n")
+    finance = Finance()
 
     indicadores = {
-        "UF": "uf",
-        "IVP": "ivp",
-        "IPC": "ipc",
-        "UTM": "utm",
-        "Dólar": "dolar",
-        "Euro": "euro"
+        "Dólar": finance.get_usd,
+        "Euro": finance.get_eur,
+        "UF": finance.get_uf,
+        "IVP": finance.get_ivp,
+        "IPC": finance.get_ipc,
+        "UTM": finance.get_utm,
     }
 
     resultados = {}
+    for nombre, func in indicadores.items():
+        try:
+            valor = func(None)
+            resultados[nombre] = valor
+        except Exception as e:
+            resultados[nombre] = None
+            print(f"Error consultando {nombre}: {e}")
 
-    for nombre, clave in indicadores.items():
-        valor = obtener_indicador(clave)
-        resultados[nombre] = valor
-
-    # Mostrar resultados
     for nombre, valor in resultados.items():
         if valor is not None:
             print(f"{nombre}: {valor} CLP")
         else:
             print(f"{nombre}: Error al obtener el valor.")
+
 
 if __name__ == "__main__":
     main()

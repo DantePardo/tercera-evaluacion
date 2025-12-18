@@ -1,8 +1,6 @@
 import datetime
-import json
 import os
 import re
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import bcrypt
@@ -98,59 +96,8 @@ class Auth:
             parameters=usuario
         )
         print("usuario registrado con exito")
-    
-    @staticmethod
-    def register_local(id: int, username: str, password: str):
-        """Registra usuario en users.json con password hasheada (hex)."""
-        try:
-            store_path = Path(__file__).parent / "users.json"
-            users = []
-            if store_path.exists():
-                with open(store_path, "r", encoding="utf-8") as f:
-                    users = json.load(f)
-            # verificar usuario duplicado
-            for u in users:
-                if u.get("username") == username:
-                    print("El usuario ya existe")
-                    return
-            pwd_bytes = password.encode("UTF-8")
-            salt = bcrypt.gensalt(12)
-            hash_password = bcrypt.hashpw(pwd_bytes, salt).hex()
-            users.append({"id": id, "username": username, "password": hash_password})
-            with open(store_path, "w", encoding="utf-8") as f:
-                json.dump(users, f, ensure_ascii=False, indent=2)
-            print("usuario registrado con exito (users.json)")
-        except Exception as e:
-            print(f"Error registrando usuario localmente: {e}")
 
-    @staticmethod
-    def login_local(username: str, password: str) -> Optional[int]:
-        """Lee users.json y valida credenciales sin SQL"""
-        try:
-            store_path = Path(__file__).parent / "users.json"
-            if not store_path.exists():
-                print("No hay coincidencias")
-                return None
-            with open(store_path, "r", encoding="utf-8") as f:
-                users = json.load(f)
-            for u in users:
-                if u.get("username") == username:
-                    try:
-                        hashed = bytes.fromhex(u.get("password", ""))
-                        if bcrypt.checkpw(password.encode("UTF-8"), hashed):
-                            print("Logeado correctamente")
-                            return int(u.get("id", 0))
-                        else:
-                            print("Contraseña incorrecta")
-                            return None
-                    except Exception as e:
-                        print(f"Error: {e}")
-                        return None
-            print("No hay coincidencias")
-            return None
-        except Exception as e:
-            print(f"Error: {e}")
-            return None
+
 
 # Integración y manejo de APIs (3.1.2)
 
@@ -338,8 +285,8 @@ def prompt_register(db: Database):
             continue
         break
 
-    # Guardar usuario localmente en users.json
-    Auth.register_local(user_id, username, password)
+    # Guardar usuario en Oracle Database
+    Auth.register(db, user_id, username, password)
 
 
 def prompt_login(db: Database) -> Optional[int]:
@@ -349,7 +296,7 @@ def prompt_login(db: Database) -> Optional[int]:
     if not _validate_username(username) or not _validate_password(password):
         print("Credenciales con formato inválido")
         return None
-    user_id = Auth.login_local(username, password)
+    user_id = Auth.login(db, username, password)
     return user_id
 
 
@@ -421,29 +368,25 @@ def run_cli():
 
 
 if __name__ == "__main__":
-    run_cli()
+        db = Database(
+        username=os.getenv("ORACLE_USER"),
+        password=os.getenv("ORACLE_PASSWORD"),
+        dsn=os.getenv("ORACLE_DSN")
+    )
 
-    """#Conectado a la base de datos a través de Oracle se debe registrar los datos consultados 
-    #cuando el usuario lo requiera, para ello deberá almacenar en la base de datos el nombre del indicador, 
-    la fecha en que registra el valor, la fecha en que el usuario realiza la consulta, 
-    el usuario que la realiza y el sitio que provee los indicadores."""
+        db.create_all_tables()
+run_cli()
 
 
 
-""" Deserialización y consumo de datos (3.1.3)
-Evalúa la creación de una clase en Python que maneje datos JSON/XML,
-además de la integración efectiva de información externa según los requerimientos.
-"""
+
+
+
 
 class DataParser:
-    """Utilidad para cargar/convertir JSON y XML.
-
-    - Cargar desde string, archivo o URL
-    - Parsear JSON/XML a dict
-    - Convertir dict a JSON o XML (simple)
-    """
-class DataParser:
-    ...
+    
+    class DataParser:
+        ...
     @staticmethod
     def _normalize_date(date_str: Optional[str]) -> str:
         """Normaliza fechas a 'YYYY-MM-DD' para la BD."""
@@ -482,9 +425,6 @@ class DataParser:
         fecha_sql = DataParser._normalize_date(fecha_raw)
 
         name = indicator_name or data.get("codigo") or data.get("nombre") or "indicator"
-        raw_json = json.dumps(data, ensure_ascii=False)
-
-        return {"name": name, "value": valor, "value_date": fecha_sql, "raw_json": raw_json}
 
     @staticmethod
     def indicator_to_db_params(parsed: Dict[str, Any], user_id: Optional[int] = None, source: Optional[str] = None) -> Dict[str, Any]:
@@ -540,6 +480,4 @@ def get_latest_indicator(self, name: str):
     sql = "SELECT name, value, TO_CHAR(value_date,'YYYY-MM-DD'), source, retrieved_at FROM INDICATORS WHERE name = :name ORDER BY retrieved_at DESC FETCH FIRST 1 ROWS ONLY"
     res = self.query(sql, {"name": name})
     return res[0] if res else None
-
-#Interfaz para probar las funcionalidades
 

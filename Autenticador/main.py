@@ -98,6 +98,30 @@ class Auth:
             parameters=usuario
         )
         print("usuario registrado con exito")
+    
+    @staticmethod
+    def register_local(id: int, username: str, password: str):
+        """Registra usuario en users.json con password hasheada (hex)."""
+        try:
+            store_path = Path(__file__).parent / "users.json"
+            users = []
+            if store_path.exists():
+                with open(store_path, "r", encoding="utf-8") as f:
+                    users = json.load(f)
+            # verificar usuario duplicado
+            for u in users:
+                if u.get("username") == username:
+                    print("El usuario ya existe")
+                    return
+            pwd_bytes = password.encode("UTF-8")
+            salt = bcrypt.gensalt(12)
+            hash_password = bcrypt.hashpw(pwd_bytes, salt).hex()
+            users.append({"id": id, "username": username, "password": hash_password})
+            with open(store_path, "w", encoding="utf-8") as f:
+                json.dump(users, f, ensure_ascii=False, indent=2)
+            print("usuario registrado con exito (users.json)")
+        except Exception as e:
+            print(f"Error registrando usuario localmente: {e}")
 
     @staticmethod
     def login_local(username: str, password: str) -> Optional[int]:
@@ -191,13 +215,6 @@ class Finance:
             print(f"Error obteniendo tasa de {currency}: {e}")
             return None
     def get_chilean_indicator(self, indicator: str, fecha: str = None) -> Optional[float]:
-        """Intenta obtener indicador desde Banco Central (si está configurado) y luego mindicador como fallback.
-
-        - Si la variable de entorno `BC_BASE_URL` está definida intentará una petición a esa URL
-          con la forma: {BC_BASE_URL}/{indicator}?date=YYYY-MM-DD
-        - Si no existe `BC_BASE_URL` o la respuesta no contiene datos esperados,
-          usará la lógica de `get_indicator` (mindicador con fallback fecha/no-fecha).
-        """
         try:
             fecha_param = fecha if fecha else None
             bc_base = os.getenv("BC_BASE_URL")
@@ -321,7 +338,8 @@ def prompt_register(db: Database):
             continue
         break
 
-    Auth.register(db, user_id, username, password)
+    # Guardar usuario localmente en users.json
+    Auth.register_local(user_id, username, password)
 
 
 def prompt_login(db: Database) -> Optional[int]:
